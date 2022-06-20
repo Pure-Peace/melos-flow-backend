@@ -1,0 +1,66 @@
+{
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/block-scanner/src",
+  "monorepo": true,
+  "root": "apps/block-scanner",
+  "compilerOptions": {
+    "webpack": true,
+    "tsConfigPath": "apps/block-scanner/tsconfig.app.json"
+  },
+  "projects": {
+    "block-scanner": {
+      "type": "application",
+      "root": "apps/block-scanner",
+      "entryFile": "main",
+      "sourceRoot": "apps/block-scanner/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/block-scanner/tsconfig.app.json"
+      }
+    },
+    "config": {
+      "type": "library",
+      "root": "libs/config",
+      "entryFile": "index",
+      "sourceRoot": "libs/config/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/config/tsconfig.lib.json"
+      }
+    },
+    "common": {
+      "type": "library",
+      "root": "libs/common",
+      "entryFile": "index",
+      "sourceRoot": "libs/common/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/common/tsconfig.lib.json"
+      }
+    },
+    "db": {
+      "type": "library",
+      "root": "libs/db",
+      "entryFile": "index",
+      "sourceRoot": "libs/db/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/db/tsconfig.lib.json"
+      }
+    },
+    "type": {
+      "type": "library",
+      "root": "libs/type",
+      "entryFile": "index",
+      "sourceRoot": "libs/type/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/type/tsconfig.lib.json"
+      }
+    },
+    "web-api": {
+      "type": "application",
+      "root": "apps/web-api",
+      "entryFile": "main",
+      "sourceRoot": "apps/web-api/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/web-api/tsconfig.app.json"
+      }
+    }
+  }
+}
