@@ -5,7 +5,7 @@ export enum ListingType {
   EnglishAuction = 3,
 }
 
-export type Network = 'testnet' | 'mainnet';
+export type Network = 'testnet' | 'mainnet' | 'emulator';
 
 export function extractOptional(field: any) {
   if (field?.type === 'Optional' && !!field.value) {

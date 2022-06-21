@@ -38,7 +38,7 @@ export class ScannerService {
       .get<string>('network')
       .toLowerCase() as Network;
 
-    if (!['testnet', 'mainnet'].includes(this.network)) {
+    if (!['testnet', 'mainnet', 'emulator'].includes(this.network)) {
       throw new Error(`Invalid network: ${this.network}`);
     }
 
@@ -128,7 +128,7 @@ export class ScannerService {
           } = ev.data;
           if (
             !(await this.listingRecord.exists({
-              listingId: { $eq: listingId },
+              listingId: { $eq: listingId.value },
             }))
           ) {
             await this.listingRecord.create({
