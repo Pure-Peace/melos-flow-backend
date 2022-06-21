@@ -8,33 +8,10 @@ import * as sdk from '@onflow/sdk';
 import * as fcl from '@onflow/fcl';
 
 import { BlockScanRecord, ListingRecord } from '@MelosFlow/db';
+import { Network, FlowEvent } from '@MelosFlow/type';
 
 const SLEEP_DURATION = 30000;
 const SCAN_STEP = 249;
-
-type Network = 'testnet' | 'mainnet';
-
-class FlowEvent {
-  blockHeight: number;
-  type: string;
-  transactionId: string;
-  transactionIndex: any;
-  eventIndex: number;
-  data: Record<string, any>;
-
-  constructor(ev: any) {
-    this.blockHeight = ev.blockHeight;
-    this.type = ev.type;
-    this.transactionId = ev.transactionId;
-    this.transactionIndex = ev.transactionIndex;
-    this.eventIndex = ev.eventIndex;
-    this.data = {};
-
-    for (const field of ev?.payload?.value?.fields) {
-      this.data[field.name] = field.value;
-    }
-  }
-}
 
 @Injectable()
 export class ScannerService {
@@ -137,6 +114,7 @@ export class ScannerService {
     switch (query.eventName) {
       case 'ListingCreated':
         for (const ev of events) {
+          console.log(ev);
           /* await this.blockRecord.create({
             network: this.network,
             height: height,
