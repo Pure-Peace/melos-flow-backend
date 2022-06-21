@@ -6,10 +6,9 @@ import { ConfigModule } from '@MelosFlow/config';
 
 import { DbService } from './db.service';
 import { BlockScanRecord } from './models/block-scan.record';
-import { ListingRecord } from './models/listing.record'
-import { ProposalRecord } from './models/proposal.record';
+import { ListingRecord } from './models/listing.record';
 
-const Models = [BlockScanRecord, ListingRecord, ProposalRecord];
+const Models = [BlockScanRecord, ListingRecord];
 
 const models = TypegooseModule.forFeature(Models, 'melos-flow');
 
@@ -33,4 +32,4 @@ const models = TypegooseModule.forFeature(Models, 'melos-flow');
 })
 export class DbModule {}
 
-export { DbService, BlockScanRecord, ListingRecord, ProposalRecord };
+export { DbService, BlockScanRecord, ListingRecord };
