@@ -1,26 +1,44 @@
 import { prop, DocumentType } from '@typegoose/typegoose';
 
-import { VoteType } from '@MelosFlow/type';
+import { ListingType } from '@MelosFlow/type';
 import { BaseModel } from './model';
 
 export type IListingRecord = DocumentType<ListingRecord>;
 
 export class ListingRecord extends BaseModel {
   @prop({ type: String, required: true, unique: true })
-  txHash!: string;
+  transactionId!: string;
+
+  @prop({ type: Number, required: true, index: true })
+  blockHeight!: number;
+
+  @prop({ type: Number, required: true })
+  eventIndex!: number;
+
+  @prop({ type: Number, required: true, index: true })
+  listingId!: number;
+
+  @prop({ type: Number, enum: ListingType, required: true })
+  listingType!: ListingType;
 
   @prop({ type: String, required: true, index: true })
-  voter!: string;
+  seller!: string;
+
+  @prop({ type: Number, required: true })
+  nftId!: number;
 
   @prop({ type: String, required: true, index: true })
-  proposalId!: string;
-
-  @prop({ type: Number, enum: VoteType, required: true })
-  support!: VoteType;
+  nftType!: string;
 
   @prop({ type: String, required: true })
-  weight!: string;
+  nftResourceUUID!: string;
 
-  @prop({ type: String })
-  reason: string | null | undefined;
+  @prop({ type: String, required: true })
+  paymentToken!: string;
+
+  @prop({ type: Number, required: true })
+  listingStartTime!: number;
+
+  @prop({ type: Number })
+  listingEndTime!: number;
 }
