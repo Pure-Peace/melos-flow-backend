@@ -6,7 +6,13 @@ import { BaseModel } from './model';
 export type IListingRecord = DocumentType<ListingRecord>;
 
 export class ListingRecord extends BaseModel {
-  @prop({ type: String, required: true, unique: true })
+  @prop({ type: Number, required: true, unique: true })
+  listingId!: number;
+
+  @prop({ type: Number, enum: ListingType, required: true })
+  listingType!: ListingType;
+
+  @prop({ type: String, required: true, index: true })
   transactionId!: string;
 
   @prop({ type: Number, required: true, index: true })
@@ -14,12 +20,6 @@ export class ListingRecord extends BaseModel {
 
   @prop({ type: Number, required: true })
   eventIndex!: number;
-
-  @prop({ type: Number, required: true, index: true })
-  listingId!: number;
-
-  @prop({ type: Number, enum: ListingType, required: true })
-  listingType!: ListingType;
 
   @prop({ type: String, required: true, index: true })
   seller!: string;

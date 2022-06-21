@@ -10,6 +10,7 @@ import * as fcl from '@onflow/fcl';
 import { BlockScanRecord, ListingRecord } from '@MelosFlow/db';
 import { Network, FlowEvent } from '@MelosFlow/type';
 
+const ERROR_SLEEP = 5000;
 const SLEEP_DURATION = 30000;
 const SCAN_STEP = 249;
 
@@ -84,10 +85,10 @@ export class ScannerService {
       this.cfg<string>('marketplaceContractCreatedBlockNumber') || '0',
     );
 
-    /* await this.blockRecord.create({
+    await this.blockRecord.create({
       network: this.network,
       height: height,
-    }); */
+    });
 
     return height;
   }
@@ -114,11 +115,37 @@ export class ScannerService {
     switch (query.eventName) {
       case 'ListingCreated':
         for (const ev of events) {
-          console.log(ev);
-          /* await this.blockRecord.create({
-            network: this.network,
-            height: height,
-          }); */
+          const {
+            listingId,
+            listingType,
+            seller,
+            nftId,
+            nftType,
+            nftResourceUUID,
+            paymentToken,
+            listingStartTime,
+            listingEndTime,
+          } = ev.data;
+          if (
+            !(await this.listingRecord.exists({
+              listingId: { $eq: listingId },
+            }))
+          ) {
+            await this.listingRecord.create({
+              listingId: listingId.value,
+              listingType: listingType.value,
+              transactionId: ev.transactionId,
+              blockHeight: ev.blockHeight,
+              eventIndex: ev.eventIndex,
+              seller: seller.value,
+              nftId: nftId.value,
+              nftType: nftType.value,
+              nftResourceUUID: nftResourceUUID.value,
+              paymentToken: paymentToken.value,
+              listingStartTime: listingStartTime.value,
+              listingEndTime: listingEndTime.value,
+            });
+          }
         }
     }
   }
@@ -178,13 +205,13 @@ export class ScannerService {
         }
 
         scanedHeight = targetHeight;
-        /* await this.blockRecord.updateOne({
+        await this.blockRecord.updateOne({
           network: this.network,
-          height: scanedHeight.toString(),
-        }); */
+          height: scanedHeight,
+        });
         return true;
       } catch (err) {
-        console.error(`!!!!! ====> SCAN ERROR:`, '\n', err);
+        console.error(`\n\n!!!!! ====> SCAN ERROR:`, '\n', err);
         return false;
       }
     };
@@ -192,7 +219,8 @@ export class ScannerService {
     while (true) {
       const result = await mainHandler();
       if (!result) {
-        process.exit(1);
+        console.log(`!!! --> sleeping ${ERROR_SLEEP / 1000}s due to errors.`);
+        await this.sleep(ERROR_SLEEP);
       }
     }
   }
