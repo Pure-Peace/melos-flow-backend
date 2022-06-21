@@ -36,6 +36,7 @@
     "@typegoose/typegoose": "^9.7.0",
     "js-yaml": "^4.1.0",
     "lodash": "^4.17.21",
+    "melos-flow": "https://github.com/Pure-Peace/melos-flow-contracts.git",
     "mongoose": "^6.2.6",
     "mongoose-paginate-v2": "^1.6.3",
     "nestjs-typegoose": "^7.1.38",

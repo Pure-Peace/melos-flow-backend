@@ -8,7 +8,9 @@ import * as sdk from '@onflow/sdk';
 import * as fcl from '@onflow/fcl';
 
 import { BlockScanRecord, ListingRecord } from '@MelosFlow/db';
-import { Network, FlowEvent } from '@MelosFlow/type';
+
+import { FlowNetwork } from 'melos-flow/sdk/config';
+import { FlowEvent } from 'melos-flow/sdk/common';
 
 const ERROR_SLEEP = 5000;
 const SLEEP_DURATION = 30000;
@@ -16,7 +18,7 @@ const SCAN_STEP = 249;
 
 @Injectable()
 export class ScannerService {
-  network: Network;
+  network: FlowNetwork;
   accessNode: string;
   marketplaceContractAddress: string;
 
@@ -36,7 +38,7 @@ export class ScannerService {
   initialize() {
     this.network = this.configService
       .get<string>('network')
-      .toLowerCase() as Network;
+      .toLowerCase() as FlowNetwork;
 
     if (!['testnet', 'mainnet', 'emulator'].includes(this.network)) {
       throw new Error(`Invalid network: ${this.network}`);
