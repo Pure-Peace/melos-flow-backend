@@ -11,6 +11,6 @@ export class AppService {
   ) {}
 
   async init() {
-    await this.scannerService.scan();
+    await this.scannerService.start();
   }
 }

@@ -1,6 +1,6 @@
 import { prop, DocumentType } from '@typegoose/typegoose';
 
-import { ListingType } from 'melos-flow/sdk/type-contracts/MelosMarketplace';
+import { ListingType } from '@melosstudio/flow-sdk';
 import { BaseModel } from './model';
 
 export type IListingRecord = DocumentType<ListingRecord>;

@@ -3,14 +3,20 @@
         {
             "contract": "MelosMarketplace",
             "address": "0xf8d6e0586b0a20c7",
-            "createdBlockHeight": 0
+            "createdBlockHeight": 0,
+            "includeEvents": [
+                "ListingCreated"
+            ]
         }
     ],
     "testnet": [
         {
             "contract": "MelosMarketplace",
             "address": "0xfbbc4cdfaf59224c",
-            "createdBlockHeight": 71110006
+            "createdBlockHeight": 71110006,
+            "includeEvents": [
+                "ListingCreated"
+            ]
         }
     ],
     "mainnet": []

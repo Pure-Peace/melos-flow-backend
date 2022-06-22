@@ -22,6 +22,7 @@
     "test:e2e": "jest --config ./apps/block-scanner/test/jest-e2e.json"
   },
   "dependencies": {
+    "@melosstudio/flow-sdk": "1.1.2",
     "@nestjs/axios": "^0.0.7",
     "@nestjs/common": "^8.0.0",
     "@nestjs/config": "^1.2.0",
@@ -36,7 +37,6 @@
     "@typegoose/typegoose": "^9.7.0",
     "js-yaml": "^4.1.0",
     "lodash": "^4.17.21",
-    "melos-flow": "https://github.com/Pure-Peace/melos-flow.git",
     "mongoose": "^6.2.6",
     "mongoose-paginate-v2": "^1.6.3",
     "nestjs-typegoose": "^7.1.38",

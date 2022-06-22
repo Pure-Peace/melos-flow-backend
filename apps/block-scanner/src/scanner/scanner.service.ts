@@ -9,31 +9,254 @@ import * as fcl from '@onflow/fcl';
 
 import { BlockScanRecord } from '@MelosFlow/db';
 
-import { FlowNetwork } from 'melos-flow/sdk/config';
-import { FlowEvent } from 'melos-flow/sdk/common';
+import { FlowNetwork, FlowEvent } from '@melosstudio/flow-sdk';
+import { ContractCfg } from '@MelosFlow/config/config';
 
 const ERROR_SLEEP = 5000;
 const SLEEP_DURATION = 30000;
 const SCAN_STEP = 249;
 
+export async function sleep(duration: number) {
+  await new Promise((resolve: any) => setTimeout(() => resolve(), duration));
+}
+
+export async function getBlockHeight(accessNode: string) {
+  const { block } = await sdk.send(await sdk.build([sdk.getLatestBlock()]), {
+    node: accessNode,
+  });
+  return block.height;
+}
+
+export function mongoId() {
+  return new Types.ObjectId();
+}
+
+export type EventQuery = {
+  eventType: string;
+  contractName: string;
+  address: string;
+  eventName: string;
+};
+
+export function eventQuery(
+  contractAddress: string,
+  contractName: string,
+  eventName: string,
+): EventQuery {
+  const address = fcl.sansPrefix(contractAddress);
+  return {
+    eventType: `A.${address}.${contractName}.${eventName}`,
+    contractName,
+    address,
+    eventName,
+  };
+}
+
+export class ScanWorker {
+  private readonly blockRecord: ReturnModelType<typeof BlockScanRecord>;
+  network: FlowNetwork;
+  eventQueries: EventQuery[];
+  contract: ContractCfg;
+
+  errorSleep: number;
+  sleepDuration: number;
+  scanStep: number;
+
+  scanedHeight: number;
+  targetHeight: number;
+  latestHeight: number;
+
+  running: boolean;
+
+  cfg: {
+    accessNodes: string[];
+  };
+  cfgIndexes: Record<keyof ScanWorker['cfg'], number>;
+
+  constructor(
+    blockRecodModel: ReturnModelType<typeof BlockScanRecord>,
+    accessNodes: string[],
+    contract: ContractCfg,
+    options?: {
+      errorSleep?: number;
+      sleepDuration?: number;
+      scanStep?: number;
+    },
+  ) {
+    this.blockRecord = blockRecodModel;
+
+    this.cfg = { accessNodes };
+    this.cfgIndexes = { accessNodes: 0 };
+
+    this.contract = contract;
+
+    this.errorSleep = this.errorSleep = options?.errorSleep || ERROR_SLEEP;
+    this.sleepDuration = options?.sleepDuration || SLEEP_DURATION;
+    this.scanStep = options?.scanStep || SCAN_STEP;
+  }
+
+  get accessNode() {
+    return this.cfg.accessNodes[this.cfgIndexes.accessNodes];
+  }
+
+  increaseIndex(indexKey: keyof ScanWorker['cfgIndexes']) {
+    if (this.cfgIndexes[indexKey] === this.cfg[indexKey].length - 1) {
+      this.cfgIndexes[indexKey] = 0;
+    } else {
+      this.cfgIndexes[indexKey]++;
+    }
+  }
+
+  async scanEvents(query: EventQuery) {
+    try {
+      return (
+        await sdk.send(
+          await sdk.build([
+            sdk.getEvents(
+              query.eventType,
+              this.scanedHeight,
+              this.targetHeight,
+            ),
+          ]),
+          { node: this.accessNode },
+        )
+      ).events.map((ev: any) => new FlowEvent(ev));
+    } catch (err) {
+      this.increaseIndex('accessNodes');
+      throw new Error(err);
+    }
+  }
+
+  async scan() {
+    try {
+      await this.updateLatestHeight();
+      if (!this.latestHeight) {
+        throw new Error(
+          `Cannot get latest block height, network: ${this.network}; accessNode: ${this.accessNode}`,
+        );
+      }
+
+      if (this.scanedHeight >= this.latestHeight) {
+        console.log(
+          `> !== ScanedHeight exceed blockHeight (#${
+            this.latestHeight
+          }); sleeping for ${this.sleepDuration / 1000} s ...`,
+        );
+        await sleep(this.sleepDuration);
+        return;
+      }
+
+      this.targetHeight = this.scanedHeight + this.scanStep;
+      if (this.targetHeight >= this.latestHeight) {
+        this.targetHeight = this.latestHeight;
+      }
+
+      console.log(
+        `\n===> scanning: from ${this.scanedHeight} to ${this.targetHeight} (latest: ${this.latestHeight})`,
+      );
+      for (const query of this.eventQueries) {
+        const events = await this.scanEvents(query);
+
+        console.log(
+          `  | ==> ${query.eventType}: Found ${events.length} events.`,
+        );
+        if (events.length) {
+          await this.handleEvents(query, events);
+          console.log(`    | ----> ${events.length} events handle done.`);
+        }
+      }
+
+      await this.recordScannedHeight();
+
+      return true;
+    } catch (err) {
+      console.error(`\n\n!!!!! ====> SCAN ERROR:`, '\n', err);
+      return false;
+    }
+  }
+
+  async recordScannedHeight() {
+    this.scanedHeight = this.targetHeight;
+    await this.blockRecord.updateOne({
+      network: this.network,
+      eventType: 'todo',
+      height: this.scanedHeight,
+    });
+  }
+
+  async start() {
+    if (this.running === true) {
+      console.warn('Worker are already started');
+      return;
+    }
+
+    this.running = true;
+    await this.updateScannedHeight();
+
+    while (this.running) {
+      const success = await this.scan();
+      if (!success) {
+        console.log(
+          `!!! --> Worker: sleeping ${this.errorSleep / 1000}s due to errors.`,
+        );
+        await sleep(this.errorSleep);
+      }
+    }
+
+    this.running = false;
+    console.warn('Worker stopped');
+  }
+
+  stop() {
+    this.running = false;
+  }
+
+  async updateScannedHeight() {
+    this.scanedHeight = await this.getScanedHeight();
+  }
+
+  async updateLatestHeight() {
+    this.latestHeight = await getBlockHeight(this.accessNode);
+  }
+
+  async getScanedHeight() {
+    const block = await this.blockRecord
+      .findOne({ network: this.network, eventType: 'todo' })
+      .sort({ height: -1 });
+
+    if (block) {
+      return block.height;
+    }
+
+    await this.blockRecord.create({
+      network: this.network,
+      eventType: 'todo',
+      height: this.contract.createdBlockHeight || 0,
+    });
+
+    return this.contract.createdBlockHeight || 0;
+  }
+
+  async handleEvents(query: EventQuery, events: FlowEvent[]) {
+    console.log(events);
+  }
+}
+
 @Injectable()
 export class ScannerService {
   network: FlowNetwork;
-  accessNode: string;
-  marketplaceContractAddress: string;
-
-  running = false;
-  executorIndex = 0;
+  accessNodes: string[];
+  contracts: ContractCfg[];
 
   constructor(
     @InjectModel(BlockScanRecord)
     private readonly blockRecord: ReturnModelType<typeof BlockScanRecord>,
     private readonly configService: ConfigService,
   ) {
-    this.initialize();
+    this.loadConfig();
   }
 
-  initialize() {
+  loadConfig() {
     this.network = this.configService
       .get<string>('network')
       .toLowerCase() as FlowNetwork;
@@ -42,167 +265,25 @@ export class ScannerService {
       throw new Error(`Invalid network: ${this.network}`);
     }
 
-    this.accessNode = this.cfg<string>('accessNode');
-    if (!this.accessNode) {
-      throw new Error(`Invalid accessNode: ${this.accessNode}`);
+    this.accessNodes = this.cfg<string[]>('accessNodes');
+    if (this.accessNodes?.length === 0) {
+      throw new Error('AccessNode not exists');
     }
 
-    this.marketplaceContractAddress = this.cfg<string>('marketplaceContract');
-    if (!this.marketplaceContractAddress) {
-      throw new Error(
-        `Invalid marketplaceContractAddress: ${this.marketplaceContractAddress}`,
-      );
+    this.contracts = this.cfg<ContractCfg[]>('contracts');
+    if (this.contracts?.length === 0) {
+      throw new Error('Contract not exists');
     }
-  }
-
-  get queries() {
-    return ['ListingCreated'];
   }
 
   cfg<T>(path: string): T {
     return this.configService.get<T>(`${this.network}.${path}`);
   }
 
-  toEventQuery(eventName: string) {
-    const address = fcl.sansPrefix(this.marketplaceContractAddress);
-    return {
-      type: `A.${address}.MelosMarketplace.${eventName}`,
-      address,
-      eventName,
-    };
-  }
-
-  async scanedHeight() {
-    const block = await this.blockRecord
-      .findOne({ network: this.network })
-      .sort({ height: -1 });
-
-    if (block) {
-      return block.height;
-    }
-
-    const height = Number(
-      this.cfg<string>('marketplaceContractCreatedBlockNumber') || '0',
+  async start() {
+    const workers = this.contracts.map(
+      (c) => new ScanWorker(this.blockRecord, this.accessNodes, c),
     );
-
-    await this.blockRecord.create({
-      network: this.network,
-      height: height,
-    });
-
-    return height;
-  }
-
-  async sleep(duration: number) {
-    await new Promise((resolve: any) => setTimeout(() => resolve(), duration));
-  }
-
-  async latestHeight() {
-    const { block } = await sdk.send(await sdk.build([sdk.getLatestBlock()]), {
-      node: this.accessNode,
-    });
-    return block.height;
-  }
-
-  mongoId() {
-    return new Types.ObjectId();
-  }
-
-  async eventHandle(
-    query: { type: string; address: string; eventName: string },
-    events: FlowEvent[],
-  ) {
-    switch (query.eventName) {
-      case 'ListingCreated':
-        for (const ev of events) {
-          const {
-            listingId,
-            listingType,
-            seller,
-            nftId,
-            nftType,
-            nftResourceUUID,
-            paymentToken,
-            listingStartTime,
-            listingEndTime,
-          } = ev.data;
-          console.log(ev);
-        }
-    }
-  }
-
-  async scan() {
-    if (this.running === true) {
-      console.warn('already running scan tasks');
-      return;
-    }
-
-    this.running = true;
-    let scanedHeight = await this.scanedHeight();
-
-    const mainHandler = async () => {
-      try {
-        const latestHeight = await this.latestHeight();
-        if (!latestHeight) {
-          throw new Error(
-            `Cannot get latest block height, network: ${this.network}; accessNode: ${this.accessNode}`,
-          );
-        }
-
-        if (scanedHeight >= latestHeight) {
-          console.log(
-            `> !== ScanedHeight exceed latestHeight (#${latestHeight}); sleeping for ${
-              SLEEP_DURATION / 1000
-            } s ...`,
-          );
-          await this.sleep(SLEEP_DURATION);
-          return;
-        }
-
-        let targetHeight = scanedHeight + SCAN_STEP;
-        if (targetHeight >= latestHeight) {
-          targetHeight = latestHeight;
-        }
-
-        console.log(
-          `\n===> scanning: from ${scanedHeight} to ${targetHeight} (latest: ${latestHeight})`,
-        );
-        const eventQueries = this.queries.map((i) => this.toEventQuery(i));
-        for (const query of eventQueries) {
-          const events = (
-            await sdk.send(
-              await sdk.build([
-                sdk.getEvents(query.type, scanedHeight, targetHeight),
-              ]),
-              { node: this.accessNode },
-            )
-          ).events.map((ev: any) => new FlowEvent(ev));
-
-          console.log(`  | ==> ${query.type}: Found ${events.length} events.`);
-          if (events.length) {
-            await this.eventHandle(query, events);
-            console.log(`    | ----> ${events.length} events handle done.`);
-          }
-        }
-
-        scanedHeight = targetHeight;
-        await this.blockRecord.updateOne({
-          network: this.network,
-          height: scanedHeight,
-        });
-        return true;
-      } catch (err) {
-        console.error(`\n\n!!!!! ====> SCAN ERROR:`, '\n', err);
-        return false;
-      }
-    };
-
-    while (true) {
-      const result = await mainHandler();
-      if (!result) {
-        console.log(`!!! --> sleeping ${ERROR_SLEEP / 1000}s due to errors.`);
-        await this.sleep(ERROR_SLEEP);
-      }
-    }
+    console.log(workers);
   }
 }

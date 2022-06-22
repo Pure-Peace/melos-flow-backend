@@ -1,8 +1,17 @@
-import fs from 'fs';
-import { FlowNetwork } from 'melos-flow/sdk/config';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
+
+import { FlowNetwork } from '@melosstudio/flow-sdk';
 
 export const isProd = process.env.NODE_ENV === 'production';
+
+export type ContractCfg = {
+  contract: string;
+  address: string;
+  createdBlockHeight: number;
+  includeEvents: string[];
+};
+export type AccountCfg = { address: string; pk: string; keyId: number };
 
 export function getConfigByNetwork(file: string, network: FlowNetwork) {
   try {
@@ -19,22 +28,12 @@ export function getConfigByNetwork(file: string, network: FlowNetwork) {
   }
 }
 
-export function getAccounts(
-  network: FlowNetwork,
-): { address: string; pk: string; keyId: number }[] {
+export function getAccounts(network: FlowNetwork): AccountCfg[] {
   return getConfigByNetwork('accounts.json', network);
 }
 
-export function getContracts(
-  network: FlowNetwork,
-): { contract: string; address: string; createdBlockHeight: number }[] {
+export function getContracts(network: FlowNetwork): ContractCfg[] {
   return getConfigByNetwork('contracts.json', network);
-}
-
-export function getEvents(
-  network: FlowNetwork,
-): { contract: string; events: string[] }[] {
-  return getConfigByNetwork('events.json', network);
 }
 
 export function getAccessNodes(network: FlowNetwork) {
@@ -65,18 +64,15 @@ export default () => ({
     accounts: getAccounts('testnet'),
     accessNodes: getAccessNodes('testnet'),
     contracts: getContracts('testnet'),
-    events: getEvents('testnet'),
   },
   mainnet: {
     accounts: getAccounts('mainnet'),
     accessNodes: getAccessNodes('mainnet'),
     contracts: getContracts('mainnet'),
-    events: getEvents('mainnet'),
   },
   emulator: {
     accounts: getAccounts('emulator'),
     accessNodes: getAccessNodes('emulator'),
     contracts: getContracts('emulator'),
-    events: getEvents('emulator'),
   },
 });
