@@ -7,7 +7,7 @@ import { Types } from 'mongoose';
 import * as sdk from '@onflow/sdk';
 import * as fcl from '@onflow/fcl';
 
-import { BlockScanRecord, ListingRecord } from '@MelosFlow/db';
+import { BlockScanRecord } from '@MelosFlow/db';
 
 import { FlowNetwork } from 'melos-flow/sdk/config';
 import { FlowEvent } from 'melos-flow/sdk/common';
@@ -28,8 +28,6 @@ export class ScannerService {
   constructor(
     @InjectModel(BlockScanRecord)
     private readonly blockRecord: ReturnModelType<typeof BlockScanRecord>,
-    @InjectModel(ListingRecord)
-    private readonly listingRecord: ReturnModelType<typeof ListingRecord>,
     private readonly configService: ConfigService,
   ) {
     this.initialize();
@@ -128,26 +126,7 @@ export class ScannerService {
             listingStartTime,
             listingEndTime,
           } = ev.data;
-          if (
-            !(await this.listingRecord.exists({
-              listingId: { $eq: listingId.value },
-            }))
-          ) {
-            await this.listingRecord.create({
-              listingId: listingId.value,
-              listingType: listingType.value,
-              transactionId: ev.transactionId,
-              blockHeight: ev.blockHeight,
-              eventIndex: ev.eventIndex,
-              seller: seller.value,
-              nftId: nftId.value,
-              nftType: nftType.value,
-              nftResourceUUID: nftResourceUUID.value,
-              paymentToken: paymentToken.value,
-              listingStartTime: listingStartTime.value,
-              listingEndTime: listingEndTime.value,
-            });
-          }
+          console.log(ev);
         }
     }
   }
