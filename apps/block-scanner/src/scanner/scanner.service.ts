@@ -53,9 +53,9 @@ export function eventQuery(
 }
 
 export class ScanWorker {
-  private readonly blockRecord: ReturnModelType<typeof BlockScanRecord>;
+  db: ScannerService['dbHandles'];
   network: FlowNetwork;
-  eventQueries: EventQuery[];
+  eventQuery: EventQuery;
   contract: ContractCfg;
 
   errorSleep: number;
@@ -74,21 +74,23 @@ export class ScanWorker {
   cfgIndexes: Record<keyof ScanWorker['cfg'], number>;
 
   constructor(
-    blockRecodModel: ReturnModelType<typeof BlockScanRecord>,
+    db: any,
     accessNodes: string[],
     contract: ContractCfg,
+    eventQuery: EventQuery,
     options?: {
       errorSleep?: number;
       sleepDuration?: number;
       scanStep?: number;
     },
   ) {
-    this.blockRecord = blockRecodModel;
+    this.db = db;
 
     this.cfg = { accessNodes };
     this.cfgIndexes = { accessNodes: 0 };
 
     this.contract = contract;
+    this.eventQuery = eventQuery;
 
     this.errorSleep = this.errorSleep = options?.errorSleep || ERROR_SLEEP;
     this.sleepDuration = options?.sleepDuration || SLEEP_DURATION;
@@ -123,7 +125,9 @@ export class ScanWorker {
       ).events.map((ev: any) => new FlowEvent(ev));
     } catch (err) {
       this.increaseIndex('accessNodes');
-      throw new Error(err);
+      throw new Error(
+        `!!! Request error, next accessNode: ${this.accessNode}; err: ${err}`,
+      );
     }
   }
 
@@ -154,16 +158,14 @@ export class ScanWorker {
       console.log(
         `\n===> scanning: from ${this.scanedHeight} to ${this.targetHeight} (latest: ${this.latestHeight})`,
       );
-      for (const query of this.eventQueries) {
-        const events = await this.scanEvents(query);
+      const events = await this.scanEvents(this.eventQuery);
 
-        console.log(
-          `  | ==> ${query.eventType}: Found ${events.length} events.`,
-        );
-        if (events.length) {
-          await this.handleEvents(query, events);
-          console.log(`    | ----> ${events.length} events handle done.`);
-        }
+      console.log(
+        `  | ==> <Query> ${this.eventQuery.eventType}: Found ${events.length} events.`,
+      );
+      if (events.length) {
+        await this.handleEvents(this.eventQuery, events);
+        console.log(`    | ----> ${events.length} events handle done.`);
       }
 
       await this.recordScannedHeight();
@@ -177,11 +179,10 @@ export class ScanWorker {
 
   async recordScannedHeight() {
     this.scanedHeight = this.targetHeight;
-    await this.blockRecord.updateOne({
-      network: this.network,
-      eventType: 'todo',
-      height: this.scanedHeight,
-    });
+    await this.db.updateScannedHeight(
+      this.eventQuery.eventType,
+      this.scanedHeight,
+    );
   }
 
   async start() {
@@ -192,7 +193,6 @@ export class ScanWorker {
 
     this.running = true;
     await this.updateScannedHeight();
-
     while (this.running) {
       const success = await this.scan();
       if (!success) {
@@ -220,21 +220,16 @@ export class ScanWorker {
   }
 
   async getScanedHeight() {
-    const block = await this.blockRecord
-      .findOne({ network: this.network, eventType: 'todo' })
-      .sort({ height: -1 });
+    const block = await this.db.findLatestBlock(this.eventQuery.eventType);
 
     if (block) {
       return block.height;
     }
 
-    await this.blockRecord.create({
-      network: this.network,
-      eventType: 'todo',
-      height: this.contract.createdBlockHeight || 0,
-    });
+    const height = this.contract.createdBlockHeight || 0;
+    await this.db.createNewBlockRecord(this.eventQuery.eventType, height);
 
-    return this.contract.createdBlockHeight || 0;
+    return height;
   }
 
   async handleEvents(query: EventQuery, events: FlowEvent[]) {
@@ -247,6 +242,29 @@ export class ScannerService {
   network: FlowNetwork;
   accessNodes: string[];
   contracts: ContractCfg[];
+  workers: ScanWorker[] = [];
+
+  dbHandles = {
+    findLatestBlock: (eventType: string) => {
+      return this.blockRecord
+        .findOne({ network: this.network, eventType })
+        .sort({ height: -1 });
+    },
+    updateScannedHeight: (eventType: string, scanedHeight: number) => {
+      return this.blockRecord.updateOne({
+        network: this.network,
+        eventType,
+        height: scanedHeight,
+      });
+    },
+    createNewBlockRecord: (eventType: string, height: number) => {
+      return this.blockRecord.create({
+        network: this.network,
+        eventType,
+        height,
+      });
+    },
+  };
 
   constructor(
     @InjectModel(BlockScanRecord)
@@ -254,6 +272,7 @@ export class ScannerService {
     private readonly configService: ConfigService,
   ) {
     this.loadConfig();
+    this.loadWorkers();
   }
 
   loadConfig() {
@@ -280,10 +299,24 @@ export class ScannerService {
     return this.configService.get<T>(`${this.network}.${path}`);
   }
 
-  async start() {
-    const workers = this.contracts.map(
-      (c) => new ScanWorker(this.blockRecord, this.accessNodes, c),
-    );
-    console.log(workers);
+  loadWorkers() {
+    console.log('loading workers...');
+    for (const contract of this.contracts) {
+      for (const eventName of contract.includeEvents) {
+        this.workers.push(
+          new ScanWorker(
+            this.dbHandles,
+            this.accessNodes,
+            contract,
+            eventQuery(contract.address, contract.name, eventName),
+          ),
+        );
+      }
+    }
+    console.log(`${this.workers.length} workers loaded.`);
+  }
+
+  async startAll() {
+    return Promise.allSettled(this.workers.map((wk) => wk.start()));
   }
 }

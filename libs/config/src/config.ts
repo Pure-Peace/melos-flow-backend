@@ -6,7 +6,7 @@ import { FlowNetwork } from '@melosstudio/flow-sdk';
 export const isProd = process.env.NODE_ENV === 'production';
 
 export type ContractCfg = {
-  contract: string;
+  name: string;
   address: string;
   createdBlockHeight: number;
   includeEvents: string[];
