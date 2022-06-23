@@ -74,7 +74,8 @@ export class ScanWorker {
   cfgIndexes: Record<keyof ScanWorker['cfg'], number>;
 
   constructor(
-    db: any,
+    db: ScannerService['dbHandles'],
+    network: FlowNetwork,
     accessNodes: string[],
     contract: ContractCfg,
     eventQuery: EventQuery,
@@ -85,6 +86,7 @@ export class ScanWorker {
     },
   ) {
     this.db = db;
+    this.network = network;
 
     this.cfg = { accessNodes };
     this.cfgIndexes = { accessNodes: 0 };
@@ -109,13 +111,13 @@ export class ScanWorker {
     }
   }
 
-  async scanEvents(query: EventQuery) {
+  async scanEvents() {
     try {
       return (
         await sdk.send(
           await sdk.build([
             sdk.getEvents(
-              query.eventType,
+              this.eventQuery.eventType,
               this.scanedHeight,
               this.targetHeight,
             ),
@@ -155,13 +157,12 @@ export class ScanWorker {
         this.targetHeight = this.latestHeight;
       }
 
-      console.log(
-        `\n===> scanning: from ${this.scanedHeight} to ${this.targetHeight} (latest: ${this.latestHeight})`,
-      );
-      const events = await this.scanEvents(this.eventQuery);
+      const events = await this.scanEvents();
 
+      const title = `\n===> <${this.network}> Scan from ${this.scanedHeight} to ${this.targetHeight} (latest: ${this.latestHeight})`;
       console.log(
-        `  | ==> <Query> ${this.eventQuery.eventType}: Found ${events.length} events.`,
+        title +
+          `\n  |  <Query> ${this.eventQuery.eventType}: Found ${events.length} events.`,
       );
       if (events.length) {
         await this.handleEvents(this.eventQuery, events);
@@ -251,11 +252,14 @@ export class ScannerService {
         .sort({ height: -1 });
     },
     updateScannedHeight: (eventType: string, scanedHeight: number) => {
-      return this.blockRecord.updateOne({
-        network: this.network,
-        eventType,
-        height: scanedHeight,
-      });
+      return this.blockRecord
+        .updateOne({
+          height: scanedHeight,
+        })
+        .where({
+          network: this.network,
+          eventType,
+        });
     },
     createNewBlockRecord: (eventType: string, height: number) => {
       return this.blockRecord.create({
@@ -306,6 +310,7 @@ export class ScannerService {
         this.workers.push(
           new ScanWorker(
             this.dbHandles,
+            this.network,
             this.accessNodes,
             contract,
             eventQuery(contract.address, contract.name, eventName),

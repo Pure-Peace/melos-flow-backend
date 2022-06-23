@@ -7,7 +7,7 @@ export class BlockScanRecord extends BaseModel {
   @prop({ type: String, required: true })
   public network!: string;
 
-  @prop({ type: String, required: true })
+  @prop({ type: String, required: true, unique: true })
   public eventType!: string;
 
   @prop({ type: Number, required: true })
