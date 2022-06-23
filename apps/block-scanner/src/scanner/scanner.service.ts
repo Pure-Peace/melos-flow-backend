@@ -11,6 +11,7 @@ import { BlockScanRecord } from '@MelosFlow/db';
 
 import { FlowNetwork, FlowEvent } from '@melosstudio/flow-sdk';
 import { ContractCfg } from '@MelosFlow/config/config';
+import { SQSClient, SendMessageBatchCommand } from '@aws-sdk/client-sqs';
 
 const ERROR_SLEEP = 5000;
 const SLEEP_DURATION = 30000;
@@ -52,6 +53,8 @@ export function eventQuery(
   };
 }
 
+export type EventsHandler = (worker: ScanWorker, events: FlowEvent[]) => any;
+
 export class ScanWorker {
   db: ScannerService['dbHandles'];
   network: FlowNetwork;
@@ -73,7 +76,10 @@ export class ScanWorker {
   };
   cfgIndexes: Record<keyof ScanWorker['cfg'], number>;
 
+  eventsHandler: EventsHandler;
+
   constructor(
+    eventsHandler: EventsHandler,
     db: ScannerService['dbHandles'],
     network: FlowNetwork,
     accessNodes: string[],
@@ -85,6 +91,7 @@ export class ScanWorker {
       scanStep?: number;
     },
   ) {
+    this.eventsHandler = eventsHandler;
     this.db = db;
     this.network = network;
 
@@ -165,7 +172,7 @@ export class ScanWorker {
           `\n  |  <Query> ${this.eventQuery.eventType}: Found ${events.length} events.`,
       );
       if (events.length) {
-        await this.handleEvents(this.eventQuery, events);
+        await this.eventsHandler(this, events);
         console.log(`    | ----> ${events.length} events handle done.`);
       }
 
@@ -232,10 +239,6 @@ export class ScanWorker {
 
     return height;
   }
-
-  async handleEvents(query: EventQuery, events: FlowEvent[]) {
-    console.log(events);
-  }
 }
 
 @Injectable()
@@ -244,6 +247,8 @@ export class ScannerService {
   accessNodes: string[];
   contracts: ContractCfg[];
   workers: ScanWorker[] = [];
+  sqsClient: SQSClient;
+  queueURL: string;
 
   dbHandles = {
     findLatestBlock: (eventType: string) => {
@@ -276,10 +281,19 @@ export class ScannerService {
     private readonly configService: ConfigService,
   ) {
     this.loadConfig();
-    this.loadWorkers();
   }
 
   loadConfig() {
+    this.sqsClient = this.configService.get<SQSClient>('sqsClient');
+    if (!this.sqsClient) {
+      throw new Error('AWS SQSClient not exists');
+    }
+
+    this.queueURL = process.env.AWS_SQS_QUEUE_URL;
+    if (!this.queueURL) {
+      throw new Error('queueURL not define');
+    }
+
     this.network = this.configService
       .get<string>('network')
       .toLowerCase() as FlowNetwork;
@@ -288,19 +302,55 @@ export class ScannerService {
       throw new Error(`Invalid network: ${this.network}`);
     }
 
-    this.accessNodes = this.cfg<string[]>('accessNodes');
+    this.accessNodes = this.flowNetworkCfg<string[]>('accessNodes');
     if (this.accessNodes?.length === 0) {
       throw new Error('AccessNode not exists');
     }
 
-    this.contracts = this.cfg<ContractCfg[]>('contracts');
+    this.contracts = this.flowNetworkCfg<ContractCfg[]>('contracts');
     if (this.contracts?.length === 0) {
       throw new Error('Contract not exists');
     }
   }
 
-  cfg<T>(path: string): T {
+  flowNetworkCfg<T>(path: string): T {
     return this.configService.get<T>(`${this.network}.${path}`);
+  }
+
+  async eventsHandler(worker: ScanWorker, events: FlowEvent[]) {
+    const RESOLVE_COUNT = 5;
+    while (events.length > 0) {
+      const batch = events.splice(0, RESOLVE_COUNT);
+      const params = {
+        Entries: [],
+        QueueUrl: this.queueURL,
+      };
+      for (const [i, ev] of Object.entries(batch)) {
+        const [, contractAddress, contractName, eventName] = ev.type.split('.');
+        params.Entries.push({
+          Id: `${eventName}-${i}`,
+          DelaySeconds: 0,
+          MessageAttributes: {
+            BlockHeight: {
+              DataType: 'Number',
+              StringValue: ev.blockHeight,
+            },
+            TransactionId: {
+              DataType: 'String',
+              StringValue: ev.transactionId,
+            },
+            EventType: {
+              DataType: 'String',
+              StringValue: ev.type,
+            },
+          },
+          MessageBody: JSON.stringify(ev),
+        });
+      }
+      const data = await this.sqsClient.send(
+        new SendMessageBatchCommand(params),
+      );
+    }
   }
 
   loadWorkers() {
@@ -309,6 +359,7 @@ export class ScannerService {
       for (const eventName of contract.includeEvents) {
         this.workers.push(
           new ScanWorker(
+            (worker, events) => this.eventsHandler(worker, events),
             this.dbHandles,
             this.network,
             this.accessNodes,

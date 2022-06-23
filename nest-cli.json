@@ -17,6 +17,15 @@
         "tsConfigPath": "apps/block-scanner/tsconfig.app.json"
       }
     },
+    "event-handler": {
+      "type": "application",
+      "root": "apps/event-handler",
+      "entryFile": "main",
+      "sourceRoot": "apps/event-handler/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/event-handler/tsconfig.app.json"
+      }
+    },
     "config": {
       "type": "library",
       "root": "libs/config",

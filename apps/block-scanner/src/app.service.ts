@@ -1,3 +1,4 @@
+import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
@@ -11,6 +12,7 @@ export class AppService {
   ) {}
 
   async init() {
+    await this.scannerService.loadWorkers();
     await this.scannerService.startAll();
   }
 }

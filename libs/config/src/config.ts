@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { SQSClient } from '@aws-sdk/client-sqs';
+
 import { FlowNetwork } from '@melosstudio/flow-sdk';
 
 export const isProd = process.env.NODE_ENV === 'production';
@@ -55,6 +57,13 @@ export function getAccessNodes(network: FlowNetwork) {
 
 export default () => ({
   mongodb: process.env.MONGO_URI,
+  sqsClient: new SQSClient({
+    region: process.env.AWS_SQS_REGION,
+    credentials: {
+      accessKeyId: process.env.AWS_SQS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SQS_SECRET_ACCESS_KEY,
+    },
+  }),
   prod: isProd,
   'web-api': {
     port: process.env.WEB_APP_PORT || 6000,
