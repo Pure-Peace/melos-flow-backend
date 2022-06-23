@@ -1,8 +1,8 @@
 {
   "name": "melos-flow-backend",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "Contains the flow event scanning service, sending events to AWS SQS; and the flow event hanlding service.",
+  "author": "Pure-Peace",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
