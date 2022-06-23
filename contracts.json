@@ -5,7 +5,30 @@
             "address": "0xf8d6e0586b0a20c7",
             "createdBlockHeight": 0,
             "includeEvents": [
-                "ListingCreated"
+                "MelosSettlementInitialized",
+                "MarketplaceManagerCreated",
+                "MarketplaceManagerDestroyed",
+                "FungibleTokenFeeUpdated",
+                "ListingTxFeeCutted",
+                "OfferAcceptFeeCutted",
+                "FungibleTokenFeeRemoved",
+                "MinimumListingDurationChanged",
+                "MaxAuctionDurationChanged",
+                "AllowedPaymentTokensChanged",
+                "BidCreated",
+                "BidRemoved",
+                "BidListingCompleted",
+                "ListingCreated",
+                "ListingRemoved",
+                "FixedPricesListingCompleted",
+                "FungibleTokenRefunded",
+                "UnRefundPaymentCreated",
+                "UnRefundPaymentClaimed",
+                "UnRefundPaymentDeposited",
+                "UnRefundPaymentNotify",
+                "OfferCreated",
+                "OfferAccepted",
+                "OfferRemoved"
             ]
         }
     ],
@@ -15,7 +38,30 @@
             "address": "0xfbbc4cdfaf59224c",
             "createdBlockHeight": 71110006,
             "includeEvents": [
-                "ListingCreated"
+                "MelosSettlementInitialized",
+                "MarketplaceManagerCreated",
+                "MarketplaceManagerDestroyed",
+                "FungibleTokenFeeUpdated",
+                "ListingTxFeeCutted",
+                "OfferAcceptFeeCutted",
+                "FungibleTokenFeeRemoved",
+                "MinimumListingDurationChanged",
+                "MaxAuctionDurationChanged",
+                "AllowedPaymentTokensChanged",
+                "BidCreated",
+                "BidRemoved",
+                "BidListingCompleted",
+                "ListingCreated",
+                "ListingRemoved",
+                "FixedPricesListingCompleted",
+                "FungibleTokenRefunded",
+                "UnRefundPaymentCreated",
+                "UnRefundPaymentClaimed",
+                "UnRefundPaymentDeposited",
+                "UnRefundPaymentNotify",
+                "OfferCreated",
+                "OfferAccepted",
+                "OfferRemoved"
             ]
         }
     ],
