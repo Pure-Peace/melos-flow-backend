@@ -11,8 +11,10 @@ import {
   SQSClient,
 } from '@aws-sdk/client-sqs';
 import { FlowEvent } from '@melosstudio/flow-sdk';
+import { sleep } from 'apps/block-scanner/src/scanner/scanner.service';
 
 const GARBAGE_RECYCLE_INTERVAL = 5000;
+const ERROR_SLEEP = 5000;
 
 export enum MessageHandleResult {
   Success,
@@ -30,7 +32,12 @@ export function parseFlowEventFromSQSMessage(
   try {
     return JSON.parse(message.Body) as FlowEvent;
   } catch (err) {
-    console.error('Failed to parsing FlowEvent from message, err: ', err);
+    console.error(
+      'Failed to parsing FlowEvent from message, err: ',
+      err,
+      'message: ',
+      message,
+    );
     return null;
   }
 }
@@ -78,17 +85,16 @@ export class HandlerService {
           ReceiptHandle,
         }),
       );
-      console.log('Message deleted', data);
       return true;
     } catch (err) {
-      console.error('Failed to delete message: ', err);
+      console.error('===> Failed to delete message: ', err);
       this.unDeletedMessages.push(ReceiptHandle);
       return false;
     }
   }
 
   async handleFlowEvent(event: FlowEvent) {
-    console.log('EVENT HANDLE: ', event);
+    // console.log('EVENT HANDLE: ', event);
 
     return true;
   }
@@ -96,7 +102,7 @@ export class HandlerService {
   async handleMessage(message: Message): Promise<MessageHandleResult> {
     try {
       if (this.unDeletedMessages.includes(message.ReceiptHandle)) {
-        console.log('FOUND A UNDELETED MESSAGE, SKIP.');
+        console.log('!!! FOUND A UNDELETED MESSAGE, SKIP.');
         return MessageHandleResult.Skip;
       }
 
@@ -112,7 +118,7 @@ export class HandlerService {
         return MessageHandleResult.Success;
       }
     } catch (err) {
-      console.error('Failed to handle message: ', err);
+      console.error('!!! Failed to handle message: ', err);
       return MessageHandleResult.Fail;
     }
   }
@@ -131,21 +137,21 @@ export class HandlerService {
         return;
       }
       console.log(
-        `Deleting unDeletedMessages... total: ${this.unDeletedMessages}`,
+        `====> Deleting unDeletedMessages... total: ${this.unDeletedMessages}`,
       );
       this.garbageRecycle.isRunning = true;
 
       let success = 0;
-      for (const receiptHandle of this.unDeletedMessages) {
-        const result = await this.deleteMessage(receiptHandle);
+      while (this.unDeletedMessages.length > 0) {
+        const result = await this.deleteMessage(this.unDeletedMessages.pop());
         if (result) success++;
       }
 
-      console.log(`Success delete ${success} unDeletedMessages `);
+      console.log(`--> Success delete ${success} unDeletedMessages `);
 
       this.garbageRecycle.isRunning = false;
     }, interval || GARBAGE_RECYCLE_INTERVAL);
-    console.log('GarbageRecycle started');
+    console.log('~~ GarbageRecycle started');
   }
 
   stopGarbageRecycle() {
@@ -157,32 +163,24 @@ export class HandlerService {
     console.log('GarbageRecycle is stopped');
   }
 
-  async start() {
-    if (this.running) {
-      console.warn('HandlerService already running');
-      return;
-    }
-
-    this.running = true;
-
-    this.startGarbageRecycle(GARBAGE_RECYCLE_INTERVAL);
-
-    const params = {
+  async messageLoop() {
+    const command = new ReceiveMessageCommand({
       AttributeNames: ['SentTimestamp'],
       MaxNumberOfMessages: 10,
       MessageAttributeNames: ['All'],
       QueueUrl: this.queueURL,
       VisibilityTimeout: 20,
-      WaitTimeSeconds: 0,
-    };
-
+      WaitTimeSeconds: 15,
+    });
     try {
-      const data = await this.sqsClient.send(new ReceiveMessageCommand(params));
+      const data = await this.sqsClient.send(command);
       if (data.Messages) {
         let success = 0;
         let failed = 0;
         let skip = 0;
-        console.log(`Resolving events, total: ${data.Messages.length}...`);
+        console.log(
+          `\n====> Resolving events, total: ${data.Messages.length}...\n`,
+        );
         for (const message of data.Messages) {
           const handleResult = await this.handleMessage(message);
           switch (handleResult) {
@@ -199,11 +197,32 @@ export class HandlerService {
         }
 
         console.log(
-          `Handle complete, total: ${data.Messages.length}, success: ${success}, failed: ${failed}, skip: ${skip}`,
+          `  | --> Message Handle complete\n  | --> total messages: ${data.Messages.length}, success: ${success}, failed: ${failed}, skip: ${skip}`,
         );
       }
+
+      return true;
     } catch (err) {
-      console.error('Receive Error', err);
+      console.error('!!! Receive Error', err);
+      return false;
     }
+  }
+
+  async start() {
+    if (this.running) {
+      console.warn('HandlerService already running');
+      return;
+    }
+
+    this.running = true;
+    this.startGarbageRecycle(GARBAGE_RECYCLE_INTERVAL);
+
+    console.log('Listening SQS Mesasages...');
+    while (this.running) {
+      const result = await this.messageLoop();
+      if (!result) sleep(ERROR_SLEEP);
+    }
+
+    console.log('Listening stopped.');
   }
 }
