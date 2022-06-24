@@ -17,6 +17,8 @@ const ERROR_SLEEP = 5000;
 const SLEEP_DURATION = 30000;
 const SCAN_STEP = 249;
 
+const ERROR_RETRY_RECYCLE_INTERVAL = 5000;
+
 export async function sleep(duration: number) {
   await new Promise((resolve: any) => setTimeout(() => resolve(), duration));
 }
@@ -172,8 +174,8 @@ export class ScanWorker {
           `\n  |  <Query> ${this.eventQuery.eventType}: Found ${events.length} events.`,
       );
       if (events.length) {
-        await this.eventsHandler(this, events);
-        console.log(`    | ----> ${events.length} events handle done.`);
+        const success = await this.eventsHandler(this, events);
+        console.log(`    | ----> ${success} events handle done.`);
       }
 
       await this.recordScannedHeight();
@@ -249,6 +251,12 @@ export class ScannerService {
   workers: ScanWorker[] = [];
   sqsClient: SQSClient;
   queueURL: string;
+  unSendMessages: any[] = [];
+
+  errorRetry: {
+    intervalId?: NodeJS.Timer;
+    isRunning: boolean;
+  };
 
   dbHandles = {
     findLatestBlock: (eventType: string) => {
@@ -281,6 +289,10 @@ export class ScannerService {
     private readonly configService: ConfigService,
   ) {
     this.loadConfig();
+    this.errorRetry = {
+      intervalId: undefined,
+      isRunning: false,
+    };
   }
 
   loadConfig() {
@@ -317,8 +329,51 @@ export class ScannerService {
     return this.configService.get<T>(`${this.network}.${path}`);
   }
 
+  startErrorRetry(interval?: number) {
+    if (this.errorRetry.intervalId) {
+      console.warn('ErrorRetry already started');
+      return;
+    }
+
+    this.errorRetry.intervalId = setInterval(async () => {
+      if (this.errorRetry.isRunning || this.unSendMessages.length === 0) {
+        return;
+      }
+      console.log(
+        `====> Sending unSendMessages... total: ${this.unSendMessages}`,
+      );
+      this.errorRetry.isRunning = true;
+
+      let success = 0;
+      while (this.unSendMessages.length > 0) {
+        const params = this.unSendMessages.pop();
+        const result = await this.sqsClient.send(
+          new SendMessageBatchCommand(params),
+        );
+        if (result) success++;
+      }
+
+      console.log(`  --> Success sended ${success} unSendMessages `);
+
+      this.errorRetry.isRunning = false;
+    }, interval || ERROR_RETRY_RECYCLE_INTERVAL);
+    console.log('==> ErrorRetry loop started');
+  }
+
+  stopErrorRetry() {
+    if (!this.errorRetry.intervalId) {
+      console.warn('ErrorRetry is not started');
+      return;
+    }
+    clearInterval(this.errorRetry.intervalId);
+    console.log('ErrorRetry is stopped');
+  }
+
   async eventsHandler(worker: ScanWorker, events: FlowEvent[]) {
     const RESOLVE_COUNT = 5;
+
+    const total = events.length;
+    let success = 0;
     while (events.length > 0) {
       const batch = events.splice(0, RESOLVE_COUNT);
       const params = {
@@ -347,10 +402,21 @@ export class ScannerService {
           MessageBody: JSON.stringify(ev),
         });
       }
-      const data = await this.sqsClient.send(
-        new SendMessageBatchCommand(params),
-      );
+      try {
+        await this.sqsClient.send(new SendMessageBatchCommand(params));
+        success += params.Entries.length;
+      } catch (err) {
+        console.error(
+          `!!! ---> Failed to send ${batch.length} messages to SQS, err: \n  | ==>`,
+          err,
+        );
+        this.unSendMessages.push(params);
+      }
     }
+    console.log(
+      `  |  ${success} messages are sended to SQS. total events: ${total}`,
+    );
+    return success;
   }
 
   loadWorkers() {
@@ -373,6 +439,7 @@ export class ScannerService {
   }
 
   async startAll() {
+    this.startErrorRetry();
     return Promise.allSettled(this.workers.map((wk) => wk.start()));
   }
 }
