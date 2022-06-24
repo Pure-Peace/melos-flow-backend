@@ -17,6 +17,15 @@
         "tsConfigPath": "apps/block-scanner/tsconfig.app.json"
       }
     },
+    "settlement-cycle":{
+      "type": "application",
+      "root": "apps/settlement-cycle",
+      "entryFile": "main",
+      "sourceRoot": "apps/settlement-cycle/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/settlement-cycle/tsconfig.app.json"
+      }
+    },
     "event-handler": {
       "type": "application",
       "root": "apps/event-handler",

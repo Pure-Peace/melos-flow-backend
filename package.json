@@ -15,6 +15,7 @@
     "prod-run-api": "nest build web-api && node dist/apps/web-api/main",
     "prod-run-scanner": "nest build block-scanner && node dist/apps/block-scanner/main",
     "prod-run-event-handler": "nest build event-handler && node dist/apps/event-handler/main",
+    "prod-run-settlement-cycle": "nest build settlement-cycle && node dist/apps/settlement-cycle/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",

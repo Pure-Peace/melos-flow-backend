@@ -168,13 +168,11 @@ export class ScanWorker {
 
       const events = await this.scanEvents();
 
-      if (events.length > 0) {
-        const title = `\n===> <${this.network}> Scan from ${this.scanedHeight} to ${this.targetHeight} (latest: ${this.latestHeight})`;
-        console.log(
-          title +
-            `\n  |  <Query> ${this.eventQuery.eventType}: Found ${events.length} events.`,
-        );
-      }
+      const title = `\n===> <${this.network}> Scan from ${this.scanedHeight} to ${this.targetHeight} (latest: ${this.latestHeight})`;
+      console.log(
+        title +
+          `\n  |  <Query> ${this.eventQuery.eventType}: Found ${events.length} events.`,
+      );
 
       if (events.length) {
         const success = await this.eventsHandler(this, events);
