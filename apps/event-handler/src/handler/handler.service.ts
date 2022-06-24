@@ -178,9 +178,7 @@ export class HandlerService {
         let success = 0;
         let failed = 0;
         let skip = 0;
-        console.log(
-          `\n====> Resolving events, total: ${data.Messages.length}...\n`,
-        );
+        console.log(`\n====> Resolving ${data.Messages.length} messages...`);
         for (const message of data.Messages) {
           const handleResult = await this.handleMessage(message);
           switch (handleResult) {
@@ -197,7 +195,7 @@ export class HandlerService {
         }
 
         console.log(
-          `  | --> Message Handle complete\n  | --> total messages: ${data.Messages.length}, success: ${success}, failed: ${failed}, skip: ${skip}`,
+          `  | --> Message Handle complete\n  | --> total: ${data.Messages.length}, success: ${success}, failed: ${failed}, skip: ${skip}`,
         );
       }
 
