@@ -94,7 +94,7 @@ export class HandlerService {
   }
 
   async handleFlowEvent(event: FlowEvent) {
-    // console.log('EVENT HANDLE: ', event);
+    console.log('flow event: ', event);
 
     return true;
   }
