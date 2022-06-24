@@ -276,7 +276,7 @@ export class HandlerService {
     console.log('Listening SQS Mesasages...');
     while (this.running) {
       const result = await this.messageLoop();
-      if (!result) sleep(ERROR_SLEEP);
+      if (!result) await sleep(ERROR_SLEEP);
     }
 
     console.log('Listening stopped.');

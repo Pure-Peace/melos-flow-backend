@@ -89,6 +89,13 @@ yarn start block-scanner
 yarn start event-handler
 ```
 
+## Start settlement cycle
+
+```bash
+yarn start settlement-cycle
+```
+
+
 ## Prod running
 
 ```bash
@@ -98,3 +105,8 @@ yarn prod-run-scanner
 ```bash
 yarn prod-event-handler
 ```
+
+```bash
+yarn prod-settlement-cycle
+```
+
