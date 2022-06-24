@@ -10,8 +10,9 @@ import {
   ReceiveMessageCommand,
   SQSClient,
 } from '@aws-sdk/client-sqs';
-import { FlowEvent } from '@melosstudio/flow-sdk';
+import { FlowEvent, parseFlowType } from '@melosstudio/flow-sdk';
 import { sleep } from 'apps/block-scanner/src/scanner/scanner.service';
+import { ListingRecord } from '@MelosFlow/db';
 
 const GARBAGE_RECYCLE_INTERVAL = 5000;
 const ERROR_SLEEP = 5000;
@@ -54,7 +55,45 @@ export class HandlerService {
     isRunning: boolean;
   };
 
-  constructor(private readonly configService: ConfigService) {
+  contractHandlers = {
+    MelosMarketplace: {
+      ListingCreated: async (event: FlowEvent) => {
+        const data = event.data;
+        try {
+          if (
+            !(await this.listingRecord.exists({
+              listingId: { $eq: data.listingId.value },
+            }))
+          ) {
+            await this.listingRecord.create({
+              listingId: data.listingId.value,
+              listingType: data.listingType.value,
+              transactionId: event.transactionId,
+              blockHeight: event.blockHeight,
+              eventIndex: event.eventIndex,
+              seller: data.seller.value,
+              nftId: data.nftId.value,
+              nftType: data.nftType.value,
+              nftResourceUUID: data.nftResourceUUID.value,
+              paymentToken: data.paymentToken.value,
+              listingStartTime: Number(data.listingStartTime.value),
+              listingEndTime: Number(data.listingEndTime.value),
+            });
+          }
+          return true;
+        } catch (err) {
+          console.error('!!! ListingCreated handle failed: ', err);
+          return false;
+        }
+      },
+    },
+  };
+
+  constructor(
+    @InjectModel(ListingRecord)
+    private readonly listingRecord: ReturnModelType<typeof ListingRecord>,
+    private readonly configService: ConfigService,
+  ) {
     this.running = false;
     this.unDeletedMessages = [];
     this.garbageRecycle = {
@@ -95,8 +134,25 @@ export class HandlerService {
 
   async handleFlowEvent(event: FlowEvent) {
     console.log('flow event: ', event);
+    try {
+      const { address, contract, name: eventName } = parseFlowType(event.type);
+      const contractHandlers = this.contractHandlers[contract];
+      if (!contractHandlers) {
+        console.warn('!!! UNHANDLED CONTRACT: ', event.type);
+        return true;
+      }
 
-    return true;
+      const handler = contractHandlers[eventName];
+      if (!handler) {
+        console.warn('!!! UNHANDLED CONTRACT EVENT: ', event.type);
+        return true;
+      }
+
+      return await handler(event);
+    } catch (err) {
+      console.error('Failed to handle flow event: ', event, '\nerr: ', err);
+      return false;
+    }
   }
 
   async handleMessage(message: Message): Promise<MessageHandleResult> {
@@ -117,6 +173,8 @@ export class HandlerService {
         await this.deleteMessage(message.ReceiptHandle);
         return MessageHandleResult.Success;
       }
+
+      return MessageHandleResult.Fail;
     } catch (err) {
       console.error('!!! Failed to handle message: ', err);
       return MessageHandleResult.Fail;
