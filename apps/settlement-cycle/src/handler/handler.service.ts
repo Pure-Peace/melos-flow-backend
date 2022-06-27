@@ -11,6 +11,8 @@ import { ConfigService } from '@nestjs/config';
 
 import * as fcl from '@onflow/fcl';
 
+const SLEEP = 15000;
+
 export async function sleep(duration: number) {
   await new Promise((resolve: any) => setTimeout(() => resolve(), duration));
 }
@@ -28,8 +30,8 @@ export class HandlerService {
     this.loadConfig();
   }
 
-  get auth() {
-    return this.accounts[this.accountsIndex].auth;
+  get account() {
+    return this.accounts[this.accountsIndex];
   }
 
   increaseIndex() {
@@ -82,45 +84,62 @@ export class HandlerService {
     return this.configService.get<T>(`${this.network}.${path}`);
   }
 
+  async removeListings() {
+    console.log('Getting removable listings...');
+    const remove = (
+      await this.melosMarketplaceSdk.getRemovableListings()
+    ).unwrap();
+    console.log(`====> ${remove.length} removable listings founded: `, remove);
+
+    if (remove.length > 0) {
+      console.log(
+        `  ==> Removing ${remove.length} listings with account "${this.account.address}" keyId: ${this.account.keyId}`,
+      );
+
+      (
+        await this.melosMarketplaceSdk.publicRemoveEndedListing(
+          this.account.auth,
+          remove,
+        )
+      ).assertOk('seal');
+    }
+
+    return remove;
+  }
+
+  async removeOffers() {
+    console.log('Getting removable offers...');
+    const remove = (
+      await this.melosMarketplaceSdk.getRemovableOffers()
+    ).unwrap();
+    console.log(`====> ${remove.length} removable offers founded: `, remove);
+
+    if (remove.length > 0) {
+      console.log(
+        `  ==> Removing ${remove.length} offers with account "${this.account.address}" keyId: ${this.account.keyId}`,
+      );
+
+      (
+        await this.melosMarketplaceSdk.publicRemoveEndedOffer(
+          this.account.auth,
+          remove,
+        )
+      ).assertOk('seal');
+    }
+
+    return remove;
+  }
+
   async handle() {
     try {
-      console.log('Getting removable listings...');
-      const removableListings = (
-        await this.melosMarketplaceSdk.getRemovableListings()
-      ).unwrap();
+      const removedListings = await this.removeListings();
+      const removedOffers = await this.removeOffers();
       console.log(
-        `${removableListings.length} removable listings founded: `,
-        removableListings,
+        `---> Done. Removed: \n---> removedListings: ${removedListings}; \n---> removedOffers: ${removedOffers};\n ---> sleeping for ${
+          SLEEP / 1000
+        }s.`,
       );
-
-      if (removableListings.length > 0) {
-        (
-          await this.melosMarketplaceSdk.publicRemoveEndedListing(
-            this.auth,
-            removableListings,
-          )
-        ).assertOk('seal');
-      }
-
-      console.log('Getting removable offers...');
-      const removeableOffers = (
-        await this.melosMarketplaceSdk.getRemovableOffers()
-      ).unwrap();
-      console.log(
-        `${removeableOffers.length} removable offers founded: `,
-        removeableOffers,
-      );
-
-      if (removeableOffers.length > 0) {
-        (
-          await this.melosMarketplaceSdk.publicRemoveEndedOffer(
-            this.auth,
-            removeableOffers,
-          )
-        ).assertOk('seal');
-      }
-
-      console.log('Handle done.');
+      await sleep(SLEEP);
     } catch (err) {
       this.increaseIndex();
       console.error(err);
@@ -130,7 +149,6 @@ export class HandlerService {
   async start() {
     while (true) {
       await this.handle();
-      await sleep(30000);
     }
   }
 }
