@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fcl from '@onflow/fcl';
 
 const SLEEP = 15000;
+const REQUEST_TIMEOUT = 40000;
 
 export async function sleep(duration: number) {
   await new Promise((resolve: any) => setTimeout(() => resolve(), duration));
@@ -96,12 +97,19 @@ export class HandlerService {
         `  ==> Removing ${remove.length} listings with account "${this.account.address}" keyId: ${this.account.keyId}`,
       );
 
-      (
-        await this.melosMarketplaceSdk.publicRemoveEndedListing(
-          this.account.auth,
-          remove,
-        )
-      ).assertOk('seal');
+      await new Promise(async (resolve, reject) => {
+        setTimeout(() => {
+          reject('TIMEOUT');
+        }, REQUEST_TIMEOUT);
+        resolve(
+          await (
+            await this.melosMarketplaceSdk.publicRemoveEndedListing(
+              this.account.auth,
+              remove,
+            )
+          ).assertOk('seal'),
+        );
+      });
     }
 
     return remove;
@@ -119,12 +127,19 @@ export class HandlerService {
         `  ==> Removing ${remove.length} offers with account "${this.account.address}" keyId: ${this.account.keyId}`,
       );
 
-      (
-        await this.melosMarketplaceSdk.publicRemoveEndedOffer(
-          this.account.auth,
-          remove,
-        )
-      ).assertOk('seal');
+      await new Promise(async (resolve, reject) => {
+        setTimeout(() => {
+          reject('TIMEOUT');
+        }, REQUEST_TIMEOUT);
+        resolve(
+          await (
+            await this.melosMarketplaceSdk.publicRemoveEndedOffer(
+              this.account.auth,
+              remove,
+            )
+          ).assertOk('seal'),
+        );
+      });
     }
 
     return remove;
