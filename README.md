@@ -44,7 +44,7 @@ MAINNET_ACCESS_NODES = https://access.onflow.org
     "testnet": [
         {
             "name": "MelosMarketplace",
-            "address": "0xfbbc4cdfaf59224c",
+            "address": "0xd9a922f2f589c50c",
             "createdBlockHeight": 71110006,
             "includeEvents": [
                 "MelosSettlementInitialized",
