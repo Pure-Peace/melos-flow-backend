@@ -13,10 +13,10 @@ import { FlowNetwork, FlowEvent } from '@melosstudio/flow-sdk';
 import { ContractCfg } from '@MelosFlow/config/config';
 import { SQSClient, SendMessageBatchCommand } from '@aws-sdk/client-sqs';
 
-const ERROR_SLEEP = 5000;
+const ERROR_SLEEP = 15000;
 const SLEEP_DURATION = 30000;
 const SCAN_STEP = 249;
-
+const VERBOSE = true;
 const ERROR_RETRY_RECYCLE_INTERVAL = 5000;
 
 export async function sleep(duration: number) {
@@ -24,9 +24,12 @@ export async function sleep(duration: number) {
 }
 
 export async function getBlockHeight(accessNode: string) {
-  const { block } = await sdk.send(await sdk.build([sdk.getLatestBlock()]), {
-    node: accessNode,
-  });
+  const { block } = await sdk.send(
+    await sdk.build([sdk.getLatestBlock(true)]),
+    {
+      node: accessNode,
+    },
+  );
   return block.height;
 }
 
@@ -152,13 +155,16 @@ export class ScanWorker {
       }
 
       if (this.scanedHeight >= this.latestHeight) {
-        console.log(
-          `> !== ScanedHeight exceed blockHeight (#${
-            this.latestHeight
-          }); sleeping for ${this.sleepDuration / 1000} s ...`,
-        );
+        if (VERBOSE) {
+          console.log(
+            `  |  <Latest Sleep (${this.sleepDuration / 1000}s)> ${
+              this.eventQuery.eventType
+            }`,
+          );
+        }
+
         await sleep(this.sleepDuration);
-        return;
+        return true;
       }
 
       this.targetHeight = this.scanedHeight + this.scanStep;
@@ -168,11 +174,13 @@ export class ScanWorker {
 
       const events = await this.scanEvents();
 
-      const title = `\n===> <${this.network}> Scan from ${this.scanedHeight} to ${this.targetHeight} (latest: ${this.latestHeight})`;
-      console.log(
-        title +
-          `\n  |  <Query> ${this.eventQuery.eventType}: Found ${events.length} events.`,
-      );
+      if (VERBOSE || events.length > 0) {
+        const title = `\n===> <${this.network}> Scan from ${this.scanedHeight} to ${this.targetHeight} (latest: ${this.latestHeight})`;
+        console.log(
+          title +
+            `\n  |  <Query> ${this.eventQuery.eventType}: Found ${events.length} events.`,
+        );
+      }
 
       if (events.length) {
         const success = await this.eventsHandler(this, events);
