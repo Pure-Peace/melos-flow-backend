@@ -3,7 +3,6 @@ import {
   AuthFlowAccount,
   FlowAccount,
   FlowNetwork,
-  getMaps,
   MelosMarketplaceSDK,
 } from '@melosstudio/flow-sdk';
 import { Injectable } from '@nestjs/common';
@@ -25,6 +24,7 @@ export class HandlerService {
   contracts: ContractCfg[];
   accounts: AuthFlowAccount[];
   accountsIndex = 0;
+  accessNodesIndex = 0;
   melosMarketplaceSdk: MelosMarketplaceSDK;
 
   constructor(private readonly configService: ConfigService) {
@@ -35,7 +35,20 @@ export class HandlerService {
     return this.accounts[this.accountsIndex];
   }
 
-  increaseIndex() {
+  get accessNode() {
+    return this.accessNodes[this.accessNodesIndex];
+  }
+
+  switchAccessNode() {
+    if (this.accountsIndex === this.accessNodes.length - 1) {
+      this.accountsIndex = 0;
+    } else {
+      this.accountsIndex++;
+    }
+    fcl.config().put('accessNode.api', this.accessNode);
+  }
+
+  switchAccount() {
     if (this.accountsIndex === this.accounts.length - 1) {
       this.accountsIndex = 0;
     } else {
@@ -58,7 +71,7 @@ export class HandlerService {
     }
 
     this.accounts = this.flowNetworkCfg<any[]>('accounts').map((acc) =>
-      FlowAccount.parseObj(acc).upgrade(fcl, this.network),
+      FlowAccount.parseObj(acc).upgrade(fcl),
     );
     if (this.accounts?.length === 0) {
       throw new Error('Accounts not exists');
@@ -156,7 +169,7 @@ export class HandlerService {
       );
       await sleep(SLEEP);
     } catch (err) {
-      this.increaseIndex();
+      this.switchAccount();
       console.error(err);
     }
   }

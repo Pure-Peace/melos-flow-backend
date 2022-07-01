@@ -16,7 +16,7 @@ import { SQSClient, SendMessageBatchCommand } from '@aws-sdk/client-sqs';
 const ERROR_SLEEP = 15000;
 const SLEEP_DURATION = 30000;
 const SCAN_STEP = 249;
-const VERBOSE = true;
+const VERBOSE = false;
 const ERROR_RETRY_RECYCLE_INTERVAL = 5000;
 
 export async function sleep(duration: number) {

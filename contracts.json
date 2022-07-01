@@ -36,7 +36,7 @@
         {
             "name": "MelosMarketplace",
             "address": "0xd9a922f2f589c50c",
-            "createdBlockHeight": 71915170,
+            "createdBlockHeight": 72001974,
             "includeEvents": [
                 "MelosSettlementInitialized",
                 "MarketplaceManagerCreated",
