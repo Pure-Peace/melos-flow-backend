@@ -4,6 +4,7 @@ import {
   FlowAccount,
   FlowNetwork,
   MelosMarketplaceSDK,
+  setAccessNode,
 } from '@melosstudio/flow-sdk';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -70,6 +71,8 @@ export class HandlerService {
       throw new Error('AccessNode not exists');
     }
 
+    fcl.config().put('accessNode.api', this.accessNode);
+
     this.accounts = this.flowNetworkCfg<any[]>('accounts').map((acc) =>
       FlowAccount.parseObj(acc).upgrade(fcl),
     );
@@ -111,17 +114,21 @@ export class HandlerService {
       );
 
       await new Promise(async (resolve, reject) => {
-        setTimeout(() => {
-          reject('TIMEOUT');
-        }, REQUEST_TIMEOUT);
-        resolve(
-          await (
-            await this.melosMarketplaceSdk.publicRemoveEndedListing(
-              this.account.auth,
-              remove,
-            )
-          ).assertOk('seal'),
-        );
+        try {
+          setTimeout(() => {
+            reject('TIMEOUT');
+          }, REQUEST_TIMEOUT);
+          resolve(
+            await (
+              await this.melosMarketplaceSdk.publicRemoveEndedListing(
+                this.account.auth,
+                remove,
+              )
+            ).assertOk('seal'),
+          );
+        } catch (err) {
+          reject(err);
+        }
       });
     }
 
@@ -141,17 +148,21 @@ export class HandlerService {
       );
 
       await new Promise(async (resolve, reject) => {
-        setTimeout(() => {
-          reject('TIMEOUT');
-        }, REQUEST_TIMEOUT);
-        resolve(
-          await (
-            await this.melosMarketplaceSdk.publicRemoveEndedOffer(
-              this.account.auth,
-              remove,
-            )
-          ).assertOk('seal'),
-        );
+        try {
+          setTimeout(() => {
+            reject('TIMEOUT');
+          }, REQUEST_TIMEOUT);
+          resolve(
+            await (
+              await this.melosMarketplaceSdk.publicRemoveEndedOffer(
+                this.account.auth,
+                remove,
+              )
+            ).assertOk('seal'),
+          );
+        } catch (err) {
+          reject(err);
+        }
       });
     }
 
